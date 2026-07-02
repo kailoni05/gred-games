@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GRED GAMES - 5 Buchstaben</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script defer src="./words.js"></script>
+    <script defer src="./app.js"></script>
+</head>
+<body>
+    <div id="auth-gate" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+        <div class="auth-card">
+            <span class="brand-kicker">Privater Zugriff</span>
+            <h2 id="auth-title">GRED GAMES</h2>
+            <p>Gib deinen Code ein, um das Spiel zu öffnen.</p>
+            <label class="auth-label" for="access-code-input">Code</label>
+            <input id="access-code-input" class="auth-input" type="password" inputmode="text" autocomplete="off" placeholder="Code eingeben">
+            <button id="access-code-button" class="primary-action" type="button">Öffnen</button>
+            <p id="access-code-message" class="auth-message" role="status" aria-live="polite"></p>
+        </div>
+    </div>
+
+    <div class="app-shell">
+        <header class="hero-bar">
+            <button class="icon-button" type="button" data-modal-open="settings-modal" aria-label="Wortlisten verwalten" title="Wortlisten verwalten">
+                <span aria-hidden="true">#</span>
+            </button>
+
+            <div class="brand-block" aria-label="Gred Games">
+                <span class="brand-kicker">5 Buchstaben</span>
+                <h1>GRED GAMES</h1>
+                <p id="hero-subtitle">Zwei Wörter. Sieben Versuche. Ein sauberer Lauf.</p>
+            </div>
+
+            <button class="icon-button" type="button" data-modal-open="help-modal" aria-label="Hilfe öffnen" title="Hilfe">
+                <span aria-hidden="true">?</span>
+            </button>
+        </header>
+
+        <nav class="control-deck" aria-label="Spielsteuerung">
+            <div class="selector-row" id="language-selector" aria-label="Sprache"></div>
+            <div class="segmented-control" aria-label="Spielmodus">
+                <button type="button" class="mode-button is-active" data-mode="daily">Tages-Challenge</button>
+                <button type="button" class="mode-button" data-mode="training">Training</button>
+            </div>
+            <div class="segmented-control word-count-control" aria-label="Anzahl Wörter">
+                <button type="button" class="word-count-button" data-word-count="1">1 Wort</button>
+                <button type="button" class="word-count-button is-active" data-word-count="2">2 Wörter</button>
+            </div>
+        </nav>
+
+        <section class="status-strip" aria-label="Rundenstatus">
+            <div>
+                <span class="status-label">Versuche</span>
+                <strong><span id="attempt-counter">0</span> / 7</strong>
+            </div>
+            <div>
+                <span class="status-label">Liste</span>
+                <strong><span id="word-count">0</span> Wörter</strong>
+            </div>
+            <div>
+                <span class="status-label">Serie</span>
+                <strong id="streak-counter">0</strong>
+            </div>
+        </section>
+
+        <main class="game-stage" aria-label="Spielbrett">
+            <section class="boards" id="boards">
+                <article class="board-panel" aria-label="Wort 1">
+                    <div class="board-heading">
+                        <span>Wort 1</span>
+                        <span class="solve-dot" id="word1-status" aria-hidden="true"></span>
+                    </div>
+                    <div class="word-grid" id="grid-word1"></div>
+                </article>
+
+                <article class="board-panel" id="board-word2" aria-label="Wort 2">
+                    <div class="board-heading">
+                        <span>Wort 2</span>
+                        <span class="solve-dot" id="word2-status" aria-hidden="true"></span>
+                    </div>
+                    <div class="word-grid" id="grid-word2"></div>
+                </article>
+            </section>
+
+            <div id="toast-message" class="toast-message" role="status" aria-live="polite"></div>
+        </main>
+
+        <section class="input-zone" aria-label="Tastatur">
+            <div id="keyboard" class="keyboard"></div>
+            <div class="action-row">
+                <button class="secondary-action" type="button" id="new-game-button" title="Neues Spiel">
+                    <span aria-hidden="true">↻</span>
+                    Neues Spiel
+                </button>
+                <button class="danger-action" type="button" id="delete-button" title="Löschen">
+                    <span aria-hidden="true">⌫</span>
+                    Löschen
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <div id="settings-modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="modal-card">
+            <button class="modal-close" type="button" data-modal-close aria-label="Schließen">×</button>
+            <h2 id="settings-title">Wortschatz</h2>
+            <p class="modal-copy">
+                Die geprüfte CSV-Liste ist fest eingebaut. Eigene CSV-Dateien kannst du zusätzlich einlesen.
+            </p>
+
+            <div class="source-panel">
+                <span>Datenquelle</span>
+                <strong id="source-status">CSV integriert</strong>
+            </div>
+
+            <div class="stats-grid" id="language-stats" aria-label="Wörter pro Sprache"></div>
+
+            <div class="upload-panel">
+                <input id="csv-file-input" type="file" accept=".csv,text/csv" hidden>
+                <button type="button" class="primary-action" id="upload-button">
+                    CSV hinzufügen
+                </button>
+                <button type="button" class="secondary-action compact" id="clear-custom-button">
+                    Eigene Liste löschen
+                </button>
+                <p id="csv-status-message" class="small-note">Bereit.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="help-modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <div class="modal-card">
+            <button class="modal-close" type="button" data-modal-close aria-label="Schließen">×</button>
+            <h2 id="help-title">Spielregeln</h2>
+            <div class="help-list">
+                <p>Errate ein oder zwei geheime Wörter. Jede Eingabe zählt für alle aktiven Felder.</p>
+                <p><span class="sample-tile correct">A</span> richtig platziert</p>
+                <p><span class="sample-tile present">B</span> im Wort, aber an anderer Stelle</p>
+                <p><span class="sample-tile absent">C</span> nicht im Wort</p>
+            </div>
+            <button type="button" class="primary-action" data-modal-close>Alles klar</button>
+        </div>
+    </div>
+
+    <div id="gameover-modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="gameover-title">
+        <div class="modal-card result-card">
+            <div id="gameover-mark" class="result-mark" aria-hidden="true"></div>
+            <h2 id="gameover-title">Runde beendet</h2>
+            <p id="gameover-subtitle" class="modal-copy"></p>
+
+            <div class="solution-panel">
+                <span id="solution-label">Gesuchte Wörter</span>
+                <div>
+                    <strong id="solution-word1"></strong>
+                    <strong id="solution-word2"></strong>
+                </div>
+            </div>
+
+            <div class="result-stats">
+                <div>
+                    <span>Versuche</span>
+                    <strong id="stat-attempts">0/7</strong>
+                </div>
+                <div>
+                    <span>Serie</span>
+                    <strong id="stat-streak">0</strong>
+                </div>
+            </div>
+
+            <button type="button" class="primary-action" id="share-button">Ergebnis teilen</button>
+            <button type="button" class="secondary-action compact" id="next-round-button">Nächste Runde</button>
+        </div>
+    </div>
+</body>
+</html>
