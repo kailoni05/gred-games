@@ -47,6 +47,7 @@
             <div class="segmented-control word-count-control" aria-label="Anzahl Wörter">
                 <button type="button" class="word-count-button" data-word-count="1">1 Wort</button>
                 <button type="button" class="word-count-button is-active" data-word-count="2">2 Wörter</button>
+                <button type="button" class="word-count-button" data-word-count="4">4 Wörter</button>
             </div>
         </nav>
 
@@ -67,7 +68,7 @@
 
         <main class="game-stage" aria-label="Spielbrett">
             <section class="boards" id="boards">
-                <article class="board-panel" aria-label="Wort 1">
+                <article class="board-panel" id="board-word1" aria-label="Wort 1">
                     <div class="board-heading">
                         <span>Wort 1</span>
                         <span class="solve-dot" id="word1-status" aria-hidden="true"></span>
@@ -81,6 +82,22 @@
                         <span class="solve-dot" id="word2-status" aria-hidden="true"></span>
                     </div>
                     <div class="word-grid" id="grid-word2"></div>
+                </article>
+
+                <article class="board-panel is-hidden" id="board-word3" aria-label="Wort 3">
+                    <div class="board-heading">
+                        <span>Wort 3</span>
+                        <span class="solve-dot" id="word3-status" aria-hidden="true"></span>
+                    </div>
+                    <div class="word-grid" id="grid-word3"></div>
+                </article>
+
+                <article class="board-panel is-hidden" id="board-word4" aria-label="Wort 4">
+                    <div class="board-heading">
+                        <span>Wort 4</span>
+                        <span class="solve-dot" id="word4-status" aria-hidden="true"></span>
+                    </div>
+                    <div class="word-grid" id="grid-word4"></div>
                 </article>
             </section>
 
@@ -135,7 +152,7 @@
             <button class="modal-close" type="button" data-modal-close aria-label="Schließen">×</button>
             <h2 id="help-title">Spielregeln</h2>
             <div class="help-list">
-                <p>Errate ein oder zwei geheime Wörter. Jede Eingabe zählt für alle aktiven Felder.</p>
+                <p>Errate ein, zwei oder vier geheime Wörter. Jede Eingabe zählt für alle aktiven Felder.</p>
                 <p><span class="sample-tile correct">A</span> richtig platziert</p>
                 <p><span class="sample-tile present">B</span> im Wort, aber an anderer Stelle</p>
                 <p><span class="sample-tile absent">C</span> nicht im Wort</p>
@@ -155,6 +172,8 @@
                 <div>
                     <strong id="solution-word1"></strong>
                     <strong id="solution-word2"></strong>
+                    <strong id="solution-word3" hidden></strong>
+                    <strong id="solution-word4" hidden></strong>
                 </div>
             </div>
 

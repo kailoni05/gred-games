@@ -9,6 +9,7 @@
         customWords: "gred_games_custom_words_v2",
         solvedDaily: "gred_games_solved_daily_v2",
         wordTargetCount: "gred_games_word_target_count_v1",
+        recentTargets: "gred_games_recent_targets_v1",
         accessGranted: "gred_games_access_granted_v1"
     };
 
@@ -29,10 +30,11 @@
         lookup: {},
         customWords: readJson(STORAGE.customWords, {}),
         wordTargetCount: clampWordTargetCount(readNumber(STORAGE.wordTargetCount, 2)),
-        targetWords: ["", ""],
+        recentTargets: readJson(STORAGE.recentTargets, {}),
+        targetWords: [],
         guesses: [],
         currentGuess: "",
-        solved: [false, false],
+        solved: [false, false, false, false],
         gameOver: false,
         streak: readNumber(STORAGE.streak, 0),
         unlocked: false,
@@ -69,11 +71,9 @@
         els.streakCounter = document.getElementById("streak-counter");
         els.toast = document.getElementById("toast-message");
         els.boards = document.getElementById("boards");
-        els.board2Panel = document.getElementById("board-word2");
-        els.grid1 = document.getElementById("grid-word1");
-        els.grid2 = document.getElementById("grid-word2");
-        els.word1Status = document.getElementById("word1-status");
-        els.word2Status = document.getElementById("word2-status");
+        els.boardPanels = [1, 2, 3, 4].map((number) => document.getElementById(`board-word${number}`));
+        els.grids = [1, 2, 3, 4].map((number) => document.getElementById(`grid-word${number}`));
+        els.statusDots = [1, 2, 3, 4].map((number) => document.getElementById(`word${number}-status`));
         els.languageStats = document.getElementById("language-stats");
         els.sourceStatus = document.getElementById("source-status");
         els.csvInput = document.getElementById("csv-file-input");
@@ -83,8 +83,7 @@
         els.gameoverTitle = document.getElementById("gameover-title");
         els.gameoverSubtitle = document.getElementById("gameover-subtitle");
         els.solutionLabel = document.getElementById("solution-label");
-        els.solutionWord1 = document.getElementById("solution-word1");
-        els.solutionWord2 = document.getElementById("solution-word2");
+        els.solutionWords = [1, 2, 3, 4].map((number) => document.getElementById(`solution-word${number}`));
         els.statAttempts = document.getElementById("stat-attempts");
         els.statStreak = document.getElementById("stat-streak");
     }
@@ -283,7 +282,7 @@
     }
 
     function activeBoardNumbers() {
-        return state.wordTargetCount === 1 ? [1] : [1, 2];
+        return Array.from({ length: state.wordTargetCount }, (_, index) => index + 1);
     }
 
     function activeTargetWords() {
@@ -291,12 +290,13 @@
     }
 
     function clampWordTargetCount(value) {
-        return Number(value) === 1 ? 1 : 2;
+        const number = Number(value);
+        return [1, 2, 4].includes(number) ? number : 2;
     }
 
     function newGame() {
         const words = state.activeWords[state.language] || [];
-        if (words.length < state.wordTargetCount) {
+        if (uniquePlayableWords(words).length < state.wordTargetCount) {
             showToast("Für diese Auswahl gibt es zu wenige Wörter.");
             return;
         }
@@ -304,7 +304,7 @@
         state.targetWords = chooseTargets(words);
         state.guesses = [];
         state.currentGuess = "";
-        state.solved = [false, state.wordTargetCount === 1];
+        state.solved = [0, 1, 2, 3].map((index) => index >= state.wordTargetCount);
         state.gameOver = false;
 
         closeModal("gameover-modal");
@@ -313,41 +313,87 @@
         updateBoardLayout();
         updateSolveDots();
         updateCounters();
-        showToast(state.mode === "daily" ? "Tages-Challenge geladen." : "Training gestartet.");
+        showToast(state.mode === "daily" ? "Neue Challenge geladen." : "Training gestartet.");
     }
 
     function chooseTargets(words) {
-        if (state.mode === "daily") {
-            const key = `${dateKey()}:${state.language}:${state.wordTargetCount}`;
-            const firstIndex = seededIndex(words.length, `${key}:A`);
-            if (state.wordTargetCount === 1) return [words[firstIndex]];
+        const playableWords = shuffleArray(uniquePlayableWords(words));
+        const recent = getRecentTargetSet();
+        const selected = [];
+        const selectedKeys = new Set();
 
-            let secondIndex = seededIndex(words.length, `${key}:B`);
-            if (sameWord(words[firstIndex], words[secondIndex])) {
-                secondIndex = (secondIndex + 1) % words.length;
-            }
+        while (selected.length < state.wordTargetCount) {
+            const freshCandidate = playableWords.find((word) => {
+                const key = foldWord(word);
+                return !selectedKeys.has(key) && !recent.has(key);
+            });
+            const fallbackCandidate = playableWords.find((word) => !selectedKeys.has(foldWord(word)));
+            const candidate = freshCandidate || fallbackCandidate;
 
-            return [words[firstIndex], words[secondIndex]];
+            if (!candidate) break;
+
+            selected.push(candidate);
+            selectedKeys.add(foldWord(candidate));
         }
 
-        const firstIndex = Math.floor(Math.random() * words.length);
-        if (state.wordTargetCount === 1) return [words[firstIndex]];
+        rememberTargets(selected);
+        return selected;
+    }
 
-        let secondIndex = Math.floor(Math.random() * words.length);
-        while (sameWord(words[firstIndex], words[secondIndex])) {
-            secondIndex = Math.floor(Math.random() * words.length);
+    function uniquePlayableWords(words) {
+        const map = new Map();
+
+        words.forEach((word) => {
+            const key = foldWord(word);
+            if (!key || map.has(key)) return;
+            map.set(key, word);
+        });
+
+        return Array.from(map.values());
+    }
+
+    function shuffleArray(items) {
+        const shuffled = [...items];
+
+        for (let index = shuffled.length - 1; index > 0; index -= 1) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
         }
-        return [words[firstIndex], words[secondIndex]];
+
+        return shuffled;
+    }
+
+    function recentTargetStorageKey() {
+        return `${state.language}:${state.wordTargetCount}`;
+    }
+
+    function getRecentTargetSet() {
+        const recent = state.recentTargets[recentTargetStorageKey()];
+        return new Set(Array.isArray(recent) ? recent : []);
+    }
+
+    function rememberTargets(targets) {
+        const storageKey = recentTargetStorageKey();
+        const current = Array.isArray(state.recentTargets[storageKey]) ? state.recentTargets[storageKey] : [];
+        const targetKeys = targets.map(foldWord);
+        const next = [
+            ...targetKeys,
+            ...current.filter((key) => !targetKeys.includes(key))
+        ].slice(0, 80);
+
+        state.recentTargets[storageKey] = next;
+        writeJson(STORAGE.recentTargets, state.recentTargets);
     }
 
     function renderGrids() {
-        els.grid1.innerHTML = "";
-        els.grid2.innerHTML = "";
+        els.grids.forEach((grid, index) => {
+            if (!grid) return;
+            grid.innerHTML = "";
 
-        for (let row = 0; row < MAX_ATTEMPTS; row += 1) {
-            els.grid1.appendChild(createRow(1, row));
-            els.grid2.appendChild(createRow(2, row));
-        }
+            for (let row = 0; row < MAX_ATTEMPTS; row += 1) {
+                grid.appendChild(createRow(index + 1, row));
+            }
+        });
     }
 
     function createRow(board, row) {
@@ -636,13 +682,20 @@
         els.gameoverMark.textContent = didWin ? "OK" : "!";
         els.gameoverMark.classList.toggle("is-loss", !didWin);
         els.gameoverTitle.textContent = didWin ? "Stark gelöst" : "Runde verloren";
+        const winCopy = {
+            1: "Das Wort sitzt. Sauberer Lauf.",
+            2: "Beide Wörter sitzen. Sauberer Lauf.",
+            4: "Alle vier Wörter sitzen. Sauberer Lauf."
+        };
         els.gameoverSubtitle.textContent = didWin
-            ? (state.wordTargetCount === 1 ? "Das Wort sitzt. Sauberer Lauf." : "Beide Wörter sitzen. Sauberer Lauf.")
+            ? winCopy[state.wordTargetCount]
             : "Die Lösung war knapp versteckt.";
         els.solutionLabel.textContent = state.wordTargetCount === 1 ? "Gesuchtes Wort" : "Gesuchte Wörter";
-        els.solutionWord1.textContent = state.targetWords[0] || "";
-        els.solutionWord2.textContent = state.targetWords[1] || "";
-        els.solutionWord2.hidden = state.wordTargetCount === 1;
+        els.solutionWords.forEach((solution, index) => {
+            if (!solution) return;
+            solution.textContent = state.targetWords[index] || "";
+            solution.hidden = index >= state.wordTargetCount;
+        });
         els.statAttempts.textContent = `${state.guesses.length}/${MAX_ATTEMPTS}`;
         els.statStreak.textContent = String(state.streak);
         openModal("gameover-modal");
@@ -705,18 +758,30 @@
     }
 
     function updateSolveDots() {
-        els.word1Status.classList.toggle("is-solved", state.solved[0]);
-        els.word2Status.classList.toggle("is-solved", state.solved[1]);
+        els.statusDots.forEach((dot, index) => {
+            if (!dot) return;
+            dot.classList.toggle("is-solved", Boolean(state.solved[index]));
+        });
     }
 
     function updateBoardLayout() {
         const solo = state.wordTargetCount === 1;
-        if (els.boards) els.boards.classList.toggle("is-solo", solo);
-        if (els.board2Panel) els.board2Panel.classList.toggle("is-hidden", solo);
+        const quad = state.wordTargetCount === 4;
+        if (els.boards) {
+            els.boards.classList.toggle("is-solo", solo);
+            els.boards.classList.toggle("is-quad", quad);
+        }
+        els.boardPanels.forEach((panel, index) => {
+            if (!panel) return;
+            panel.classList.toggle("is-hidden", index >= state.wordTargetCount);
+        });
         if (els.heroSubtitle) {
-            els.heroSubtitle.textContent = solo
-                ? "Ein Wort. Sieben Versuche. Ein sauberer Lauf."
-                : "Zwei Wörter. Sieben Versuche. Ein sauberer Lauf.";
+            const subtitles = {
+                1: "Ein Wort. Sieben Versuche. Ein sauberer Lauf.",
+                2: "Zwei Wörter. Sieben Versuche. Ein sauberer Lauf.",
+                4: "Vier Wörter. Sieben Versuche. Ein sauberer Lauf."
+            };
+            els.heroSubtitle.textContent = subtitles[state.wordTargetCount];
         }
     }
 
@@ -981,14 +1046,6 @@
         return `${dateKey()}:${state.language}:${state.wordTargetCount}:${activeTargetWords().join(":")}`;
     }
 
-    function seededIndex(length, seed) {
-        let hash = 2166136261;
-        for (let index = 0; index < seed.length; index += 1) {
-            hash ^= seed.charCodeAt(index);
-            hash = Math.imul(hash, 16777619);
-        }
-        return Math.abs(hash) % length;
-    }
 
     function formatNumber(value) {
         return new Intl.NumberFormat("de-DE").format(value);

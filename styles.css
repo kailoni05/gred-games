@@ -246,7 +246,7 @@ h1 {
     border-radius: var(--radius);
     padding: 10px;
     display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr) minmax(150px, 0.58fr);
+    grid-template-columns: minmax(0, 1.05fr) minmax(220px, 0.9fr) minmax(190px, 0.68fr);
     gap: 10px;
 }
 
@@ -358,6 +358,10 @@ h1 {
 .boards.is-solo {
     grid-template-columns: minmax(0, 430px);
     justify-content: center;
+}
+
+.boards.is-quad {
+    align-content: start;
 }
 
 .board-panel.is-hidden {
@@ -840,6 +844,10 @@ h1 {
 
     .boards {
         gap: 7px;
+    }
+
+    .boards.is-quad {
+        grid-template-columns: 1fr 1fr;
     }
 
     .board-panel {
