@@ -6,7 +6,7 @@
     const ACCESS_CODE_HASH = "3a5fc9bb";
     const STORAGE = {
         streak: "gred_games_streak_v2",
-        customWords: "gred_games_custom_words_v2",
+        customWords: "gred_games_custom_words_v4",
         solvedDaily: "gred_games_solved_daily_v2",
         wordTargetCount: "gred_games_word_target_count_v1",
         recentTargets: "gred_games_recent_targets_v1",
@@ -28,10 +28,13 @@
         mode: "daily",
         activeWords: {},
         lookup: {},
+        hintLookup: {},
         customWords: readJson(STORAGE.customWords, {}),
         wordTargetCount: clampWordTargetCount(readNumber(STORAGE.wordTargetCount, 2)),
         recentTargets: readJson(STORAGE.recentTargets, {}),
         targetWords: [],
+        targetHints: [],
+        hintLevel: 0,
         guesses: [],
         currentGuess: "",
         solved: [false, false, false, false],
@@ -74,6 +77,7 @@
         els.boardPanels = [1, 2, 3, 4].map((number) => document.getElementById(`board-word${number}`));
         els.grids = [1, 2, 3, 4].map((number) => document.getElementById(`grid-word${number}`));
         els.statusDots = [1, 2, 3, 4].map((number) => document.getElementById(`word${number}-status`));
+        els.hintLines = [1, 2, 3, 4].map((number) => document.getElementById(`hint-word${number}`));
         els.languageStats = document.getElementById("language-stats");
         els.sourceStatus = document.getElementById("source-status");
         els.csvInput = document.getElementById("csv-file-input");
@@ -86,6 +90,7 @@
         els.solutionWords = [1, 2, 3, 4].map((number) => document.getElementById(`solution-word${number}`));
         els.statAttempts = document.getElementById("stat-attempts");
         els.statStreak = document.getElementById("stat-streak");
+        els.hintButton = document.getElementById("hint-button");
     }
 
     function bindEvents() {
@@ -108,6 +113,7 @@
         });
 
         document.getElementById("new-game-button").addEventListener("click", newGame);
+        if (els.hintButton) els.hintButton.addEventListener("click", showHint);
         document.getElementById("delete-button").addEventListener("click", () => handleKey("BACKSPACE"));
         document.getElementById("upload-button").addEventListener("click", () => els.csvInput.click());
         document.getElementById("clear-custom-button").addEventListener("click", clearCustomWords);
@@ -159,25 +165,48 @@
 
     function buildActiveWords() {
         const baseWords = window.GRED_GAMES_WORDS || {};
+        const hintedWords = window.GRED_GAMES_WORDS_WITH_HINTS || {};
         state.activeWords = {};
         state.lookup = {};
+        state.hintLookup = {};
 
         LANGUAGES.forEach(({ code }) => {
+            const hintedRows = Array.isArray(hintedWords[code]) ? hintedWords[code] : [];
+            const hintedBuiltInWords = hintedRows.map((row) => Array.isArray(row) ? row[0] : "");
+            const builtInWords = hintedBuiltInWords.length > 0
+                ? hintedBuiltInWords
+                : (Array.isArray(baseWords[code]) ? baseWords[code] : []);
             const merged = [
-                ...(Array.isArray(baseWords[code]) ? baseWords[code] : []),
+                ...builtInWords,
                 ...(Array.isArray(state.customWords[code]) ? state.customWords[code] : [])
             ];
             const words = uniqueWords(merged);
             const lookup = new Map();
+            const hintLookup = new Map();
 
             words.forEach((word) => {
                 const key = foldWord(word);
                 if (!lookup.has(key)) lookup.set(key, word);
             });
 
+            hintedRows.forEach((row) => {
+                if (!Array.isArray(row)) return;
+                const word = sanitizeWord(row[0]);
+                if (!isFiveLetterWord(word)) return;
+
+                const key = foldWord(word);
+                const hints = [cleanHint(row[1]), cleanHint(row[2])].filter(Boolean);
+                if (!hintLookup.has(key) && hints.length > 0) hintLookup.set(key, hints);
+            });
+
             state.activeWords[code] = words;
             state.lookup[code] = lookup;
+            state.hintLookup[code] = hintLookup;
         });
+    }
+
+    function cleanHint(value) {
+        return String(value || "").trim();
     }
 
     function buildLanguageSelector() {
@@ -302,6 +331,8 @@
         }
 
         state.targetWords = chooseTargets(words);
+        state.targetHints = state.targetWords.map((word) => hintsForWord(word));
+        state.hintLevel = 0;
         state.guesses = [];
         state.currentGuess = "";
         state.solved = [0, 1, 2, 3].map((index) => index >= state.wordTargetCount);
@@ -312,6 +343,7 @@
         buildKeyboard();
         updateBoardLayout();
         updateSolveDots();
+        renderHints();
         updateCounters();
         showToast(state.mode === "daily" ? "Neue Challenge geladen." : "Training gestartet.");
     }
@@ -394,6 +426,100 @@
                 grid.appendChild(createRow(index + 1, row));
             }
         });
+    }
+
+    function showHint() {
+        if (!state.unlocked || state.gameOver) return;
+
+        if (state.hintLevel >= 2) {
+            showToast("Alle Tipps sind sichtbar.");
+            return;
+        }
+
+        state.hintLevel += 1;
+        renderHints();
+        showToast(state.hintLevel === 1 ? "Tipp 1 sichtbar." : "Tipp 2 sichtbar.");
+    }
+
+    function renderHints() {
+        els.hintLines.forEach((line, index) => {
+            if (!line) return;
+
+            const active = index < state.wordTargetCount;
+            const hints = state.targetHints[index] || [];
+            const shownHints = hints.slice(0, state.hintLevel).filter(Boolean);
+            const visible = active && shownHints.length > 0;
+
+            line.hidden = !visible;
+            line.textContent = visible
+                ? shownHints.map((hint, hintIndex) => `Tipp ${hintIndex + 1}: ${formatHintForDisplay(hint)}`).join("\n")
+                : "";
+            line.title = visible ? shownHints.join("\n") : "";
+        });
+
+        updateHintButton();
+    }
+
+    function formatHintForDisplay(hint) {
+        const text = cleanHint(hint);
+        const vowelPatterns = [
+            [/^Das Wort enthält (\d+) Vokal(?:e)?; (mindestens ein Buchstabe kommt mehrfach vor|kein Buchstabe kommt mehrfach vor)\.$/, "Vok.", "mit Doppel", "ohne Doppel", "mindestens"],
+            [/^The word contains (\d+) vowel(?:s)?; (at least one letter is repeated|no letter is repeated)\.$/, "vow.", "repeat", "no repeat", "at least"],
+            [/^Le mot contient (\d+) voyelle(?:s)?; (au moins une lettre est répétée|aucune lettre n’est répétée)\.$/, "voy.", "répétée", "unique", "au moins"],
+            [/^La palabra contiene (\d+) vocal(?:es)?; (al menos una letra se repite|ninguna letra se repite)\.$/, "voc.", "repite", "sin repetir", "al menos"],
+            [/^La parola contiene (\d+) vocal(?:i|e)?; (almeno una lettera si ripete|nessuna lettera si ripete)\.$/, "voc.", "ripete", "no doppie", "almeno"]
+        ];
+
+        for (const [pattern, unit, repeated, unique, repeatedMarker] of vowelPatterns) {
+            const match = text.match(pattern);
+            if (match) return `${match[1]} ${unit} · ${match[2].startsWith(repeatedMarker) ? repeated : unique}`;
+        }
+
+        const edgePatterns = [
+            [/^Es beginnt mit „(.+)“ und endet mit „(.+)“\.$/, "Start", "Ende"],
+            [/^It starts with “(.+)” and ends with “(.+)”\.$/, "Start", "end"],
+            [/^Il commence par « (.+) » et se termine par « (.+) »\.$/, "Début", "fin"],
+            [/^Empieza por «(.+)» y termina en «(.+)»\.$/, "Inicio", "fin"],
+            [/^Inizia con «(.+)» e finisce con «(.+)»\.$/, "Inizio", "fine"]
+        ];
+
+        for (const [pattern, startLabel, endLabel] of edgePatterns) {
+            const match = text.match(pattern);
+            if (match) return `${startLabel} ${match[1]} · ${endLabel} ${match[2]}`;
+        }
+
+        return text;
+    }
+
+    function updateHintButton() {
+        if (!els.hintButton) return;
+        els.hintButton.disabled = state.gameOver || state.hintLevel >= 2;
+        els.hintButton.setAttribute("aria-label", state.hintLevel === 0 ? "Tipp anzeigen" : "Weiteren Tipp anzeigen");
+    }
+
+    function hintsForWord(word) {
+        const lookup = state.hintLookup[state.language];
+        const storedHints = lookup ? lookup.get(foldWord(word)) : null;
+        if (Array.isArray(storedHints) && storedHints.length > 0) return storedHints;
+        return buildGeneratedHints(word);
+    }
+
+    function buildGeneratedHints(word) {
+        const letters = lettersOf(word);
+        const foldedLetters = letters.map(foldWord);
+        const repeated = new Set(foldedLetters).size < foldedLetters.length;
+        const vowelCount = letters.filter((letter) => isVowel(letter)).length;
+        const first = letters[0] || "?";
+        const last = letters[letters.length - 1] || "?";
+
+        return [
+            `Das Wort enthält ${vowelCount} Vokale; ${repeated ? "mindestens ein Buchstabe kommt mehrfach vor" : "kein Buchstabe kommt mehrfach vor"}.`,
+            `Es beginnt mit „${first}“ und endet mit „${last}“.`
+        ];
+    }
+
+    function isVowel(letter) {
+        return /^[AEIOUÄÖÜÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÃÕÅÆŒ]$/u.test(toGameUpper(letter));
     }
 
     function createRow(board, row) {
@@ -698,6 +824,7 @@
         });
         els.statAttempts.textContent = `${state.guesses.length}/${MAX_ATTEMPTS}`;
         els.statStreak.textContent = String(state.streak);
+        updateHintButton();
         openModal("gameover-modal");
     }
 
@@ -706,6 +833,7 @@
             `GRED GAMES ${state.language} ${state.guesses.length}/${MAX_ATTEMPTS}`,
             `Modus: ${state.mode === "daily" ? "Tages-Challenge" : "Training"}`,
             `Wörter: ${state.wordTargetCount}`,
+            `Tipps: ${state.hintLevel}/2`,
             `Serie: ${state.streak}`,
             ""
         ];

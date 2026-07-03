@@ -64,6 +64,10 @@
                 <span class="status-label">Serie</span>
                 <strong id="streak-counter">0</strong>
             </div>
+            <div class="status-action">
+                <span class="status-label">Tipp</span>
+                <button class="hint-action" type="button" id="hint-button" title="Tipp anzeigen">Tipp</button>
+            </div>
         </section>
 
         <main class="game-stage" aria-label="Spielbrett">
@@ -73,6 +77,7 @@
                         <span>Wort 1</span>
                         <span class="solve-dot" id="word1-status" aria-hidden="true"></span>
                     </div>
+                    <p class="hint-line" id="hint-word1" hidden></p>
                     <div class="word-grid" id="grid-word1"></div>
                 </article>
 
@@ -81,6 +86,7 @@
                         <span>Wort 2</span>
                         <span class="solve-dot" id="word2-status" aria-hidden="true"></span>
                     </div>
+                    <p class="hint-line" id="hint-word2" hidden></p>
                     <div class="word-grid" id="grid-word2"></div>
                 </article>
 
@@ -89,6 +95,7 @@
                         <span>Wort 3</span>
                         <span class="solve-dot" id="word3-status" aria-hidden="true"></span>
                     </div>
+                    <p class="hint-line" id="hint-word3" hidden></p>
                     <div class="word-grid" id="grid-word3"></div>
                 </article>
 
@@ -97,6 +104,7 @@
                         <span>Wort 4</span>
                         <span class="solve-dot" id="word4-status" aria-hidden="true"></span>
                     </div>
+                    <p class="hint-line" id="hint-word4" hidden></p>
                     <div class="word-grid" id="grid-word4"></div>
                 </article>
             </section>
